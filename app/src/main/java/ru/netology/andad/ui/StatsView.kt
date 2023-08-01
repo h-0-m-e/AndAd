@@ -1,5 +1,6 @@
 package ru.netology.andad.ui
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -7,9 +8,8 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
+import android.view.animation.LinearInterpolator
 import androidx.core.content.withStyledAttributes
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import ru.netology.andad.R
 import ru.netology.andad.utils.AndroidUtils
 import java.lang.Integer.min
@@ -36,12 +36,14 @@ class StatsView @JvmOverloads constructor(
     private var colors = emptyList<Int>()
     private var backgroundColor: Int = randomColor()
 
-    var data: Int = -1
+    private var progress = 0F
+    private var rotationAngle = 0F
+    private var valueAnimator: ValueAnimator? = null
 
-    private var _data: List<Float> = emptyList()
+    var data: List<Float> = emptyList()
         set(value) {
             field = value
-            invalidate()
+            update()
         }
 
     init {
@@ -83,59 +85,78 @@ class StatsView @JvmOverloads constructor(
     }
 
     override fun onDraw(canvas: Canvas) {
-        if (data == -1) {
+        if (data.isEmpty()) {
             return
         }
-
-        _data = calculateDataToPercents(data)
 
         circlePaint.color = backgroundColor
         canvas.drawCircle(center.x,center.y, radius, circlePaint)
 
-        var startFrom = -90F
-        for ((index, datum) in _data.withIndex()) {
+        var startFrom = -90F + rotationAngle
+        for ((index, datum) in data.withIndex()) {
             val angle = 360F * datum
             paint.color = colors.getOrNull(index) ?: randomColor()
-            canvas.drawArc(oval, startFrom, angle, false, paint)
+            canvas.drawArc(oval, startFrom, angle * progress, false, paint)
 
             startFrom += angle
         }
-        paint.color = colors.first()
-        canvas.drawArc(oval,-90F, 0.1F, false,paint)
+//        paint.color = colors.first()
+//        canvas.drawArc(oval,-90F, 0.1F, false,paint)
 
         canvas.drawText(
-            "%.2f%%".format(_data.sum() * 100),
+            "%.2f%%".format(data.sum() * 100),
             center.x,
             center.y + textPaint.textSize / 4,
             textPaint,
         )
     }
 
+    private fun update() {
+        valueAnimator?.let {
+            it.removeAllListeners()
+            it.cancel()
+        }
+        progress = 0F
+        rotationAngle = 0F
+
+        valueAnimator = ValueAnimator.ofFloat(0F, 1F).apply {
+            addUpdateListener { anim ->
+                progress = anim.animatedValue as Float
+                rotationAngle = 360F * progress
+                invalidate()
+            }
+            duration = 3000
+            interpolator = LinearInterpolator()
+        }.also {
+            it.start()
+        }
+    }
+
     private fun randomColor() = Random.nextInt(0xFF000000.toInt(), 0xFFFFFFFF.toInt())
 
-    private fun calculateDataToPercents(data: Int): List<Float> {
-        val fullPart = 0.25F
-        var calculatedData = listOf(
-            fullPart,
-            fullPart,
-            fullPart,
-            fullPart
-        )
-
-        if (data >= 100){
-            return calculatedData
-        }
-
-        if (data <= 0){
-            return emptyList()
-        }
-
-        when(data/25){
-            0->{ calculatedData = listOf(((data).toFloat()/100)) }
-            1->{ calculatedData = listOf(fullPart, ((data).toFloat()/100 - fullPart)) }
-            2->{ calculatedData = listOf(fullPart, fullPart, ((data).toFloat()/100 - fullPart * 2)) }
-            3->{ calculatedData = listOf(fullPart, fullPart, fullPart, ((data).toFloat()/100 - fullPart * 3)) }
-        }
-        return calculatedData
-    }
+//    private fun calculateDataToPercents(data: Int): List<Float> {
+//        val fullPart = 0.25F
+//        var calculatedData = listOf(
+//            fullPart,
+//            fullPart,
+//            fullPart,
+//            fullPart
+//        )
+//
+//        if (data >= 100){
+//            return calculatedData
+//        }
+//
+//        if (data <= 0){
+//            return emptyList()
+//        }
+//
+//        when(data/25){
+//            0->{ calculatedData = listOf(((data).toFloat()/100)) }
+//            1->{ calculatedData = listOf(fullPart, ((data).toFloat()/100 - fullPart)) }
+//            2->{ calculatedData = listOf(fullPart, fullPart, ((data).toFloat()/100 - fullPart * 2)) }
+//            3->{ calculatedData = listOf(fullPart, fullPart, fullPart, ((data).toFloat()/100 - fullPart * 3)) }
+//        }
+//        return calculatedData
+//    }
 }
